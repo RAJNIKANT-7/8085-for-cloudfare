@@ -1,0 +1,61 @@
+name: Import 8085 Simulator
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Cloudflare repository
+        uses: actions/checkout@v4
+
+      - name: Copy simulator files into site
+        run: |
+          rm -rf site
+          mkdir -p site
+          git clone --depth 1 https://github.com/RAJNIKANT-7/8085-Microprocessor-Simulator.git /tmp/source
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='pnpm-lock.yaml' \
+            --exclude='yarn.lock' \
+            --exclude='wrangler.jsonc' \
+            --exclude='api/' \
+            /tmp/source/ site/
+
+      - name: Add Cloudflare-safe configuration
+        run: |
+          cat > wrangler.jsonc <<'EOF'
+          {
+            "$schema": "node_modules/wrangler/config-schema.json",
+            "name": "8085-microprocessor-simulator",
+            "compatibility_date": "2026-09-07",
+            "observability": { "enabled": true },
+            "assets": { "directory": "./site" }
+          }
+          EOF
+
+          cat > .gitignore <<'EOF'
+          node_modules/
+          .wrangler/
+          .dev.vars
+          .env
+          .env.*
+          EOF
+
+      - name: Commit imported simulator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site wrangler.jsonc .gitignore
+          git diff --cached --quiet || git commit -m "Import 8085 simulator for Cloudflare"
+          git push
